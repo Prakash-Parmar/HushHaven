@@ -3,7 +3,10 @@ require('dotenv').config();
 const express = require('express');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const encrypt = require('mongoose-encryption');
+// const encrypt = require('mongoose-encryption'); --
+// const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRound = 10;
 
 const app = express();
 
@@ -21,7 +24,7 @@ const userSchema = new mongoose.Schema ({
 });
 
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ['password']});
+// userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ['password']});
 
 const User = new mongoose.model('User', userSchema);
 
@@ -38,18 +41,27 @@ app.get('/register', function(req, res){
 });
 
 app.post('/register', function(req, res){
-  const newUser = new User({
-    email: req.body.username,
-    password: req.body.password
-  });
 
-  newUser.save()
-          .then(function(){
-            res.render('secrets');
+  bcrypt.hash(req.body.password, saltRound)
+          .then(function(hash){
+            const newUser = new User({
+               email: req.body.username,
+               password: hash
+             });
+
+             newUser.save()
+                     .then(function(){
+                       res.render('secrets');
+                     })
+                     .catch(function(err){
+                       console.log(err);
+                     });
           })
           .catch(function(err){
             console.log(err);
           });
+
+
 });
 
 app.post('/login', function(req, res){
@@ -58,9 +70,14 @@ app.post('/login', function(req, res){
 
   User.findOne({email: userName})
         .then(function(foundUser){
-          if(foundUser && foundUser.password === password){
-            res.render('secrets');
-          }
+          bcrypt.compare(password, foundUser.password)
+                  .then(function(result){
+                    if(result == true)
+                      res.render('secrets');
+                  })
+                  .catch(function(err){
+                    console.log(err);
+                  });
         });
 });
 
